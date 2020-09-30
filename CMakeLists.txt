@@ -1,59 +1,54 @@
-cmake_minimum_required(VERSION 2.8)
-project(final)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.6.0 FATAL_ERROR)
 
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_SOURCE_DIR})
-include(ExternalProject)
+# DEBUG|RELEASE|RELWITHDEBINFO|MINSIZEREL
+# SET (CMAKE_BUILD_TYPE DEBUG)
+SET (CMAKE_BUILD_TYPE DEBUG)
 
-if("${CMAKE_SYSTEM_NAME}" STREQUAL "FreeBSD")
-    set(CMD_TO_BUILD gmake)
-    set(SYSTEM_LIB kvm)
-else()
-    set(CMD_TO_BUILD make)
-    set(SYSTEM_LIB "")
-endif()
+# Application name
+SET (APP_NAME final)
 
-ExternalProject_Add(
-    http-parser
-    GIT_REPOSITORY "https://github.com/nodejs/http-parser.git"
-    SOURCE_DIR ${PROJECT_SOURCE_DIR}/http-parser
-    CONFIGURE_COMMAND ""
-    BUILD_IN_SOURCE 1
-    BUILD_COMMAND ${CMD_TO_BUILD} package
-    INSTALL_COMMAND ""
-)
+# Project name
+PROJECT (${APP_NAME})
 
-ExternalProject_Add(
-    libuv
-    GIT_REPOSITORY "https://github.com/libuv/libuv.git"
-    SOURCE_DIR ${PROJECT_SOURCE_DIR}/libuv
-    CONFIGURE_COMMAND ./gyp_uv.py -f make
-    BUILD_IN_SOURCE 1
-    BUILD_COMMAND BUILDTYPE=Release ${CMD_TO_BUILD} -C out
-    INSTALL_COMMAND ""
-)
+# Compiler flags
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -std=c++11")
 
-ExternalProject_Add_Step(
-    libuv c1
-    COMMAND git clone https://chromium.googlesource.com/external/gyp.git build/gyp
-    DEPENDEES update
-    DEPENDERS configure
-    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/libuv
-)
+# Directories
+SET (SRC_DIR ${PROJECT_SOURCE_DIR}/src)
+SET (INC_DIR ${PROJECT_SOURCE_DIR}/include)
+SET (LIB_DIR ${PROJECT_SOURCE_DIR}/lib)
+SET (TST_DIR ${PROJECT_SOURCE_DIR}/test)
 
-#ExternalProject_Add_Step(
-#    libuv c1
-#    COMMAND "./configure"
-#    DEPENDEES configure
-#    DEPENDERS build  
-#    WORKING_DIRECTORY ${PROJECT_SOURCE_DIR}/libuv
-#)
+#ENABLE_TESTING ()
 
-find_package(Threads REQUIRED)
-add_definitions(-std=c++11)
-include_directories(${PROJECT_SOURCE_DIR}/http-parser ${PROJECT_SOURCE_DIR}/libuv/include)
-link_directories(${PROJECT_SOURCE_DIR}/http-parser ${PROJECT_SOURCE_DIR}/libuv/out/Release)
-add_executable(final http_server.cpp)
-add_dependencies(final http-parser libuv)
-set_property(TARGET final PROPERTY CXX_STANDARD 11)
-set_property(TARGET final PROPERTY CXX_STANDARD_REQUIRED ON)
-target_link_libraries(final uv ${SYSTEM_LIB} http_parser ${CMAKE_THREAD_LIBS_INIT})
+ADD_EXECUTABLE (${APP_NAME} "${PROJECT_SOURCE_DIR}/main.cpp")
+
+###### BOOST ###########
+#FIND_PACKAGE(Boost REQUIRED)
+# SET (Boost_USE_STATIC_LIBS ON)
+# SET (Boost_USE_MULTITHREADED ON)
+
+###### LIBEV ###########
+FIND_PATH(LIBEV_INCLUDE_DIR ev.h HINTS /usr/include/libev )
+FIND_LIBRARY(LIBEV_LIBRARIES NAMES ev)
+IF(LIBEV_INCLUDE_DIR AND LIBEV_LIBRARIES)
+    SET(LIBEV_FOUND TRUE)
+ENDIF(LIBEV_INCLUDE_DIR AND LIBEV_LIBRARIES)
+IF(LIBEV_FOUND)
+    IF (NOT Libev_FIND_QUIETLY)
+        MESSAGE(STATUS "Found libev includes:   ${LIBEV_INCLUDE_DIR}/libev/ev.h")
+        MESSAGE(STATUS "Found libev library: ${LIBEV_LIBRARIES}")
+    ENDIF (NOT Libev_FIND_QUIETLY)
+ELSE(LIBEV_FOUND)
+    IF (Libev_FIND_REQUIRED)
+        MESSAGE(FATAL_ERROR "Could NOT find libev development files")
+    ENDIF (Libev_FIND_REQUIRED)
+ENDIF(LIBEV_FOUND)
+###### /LIBEV ##########
+
+INCLUDE_DIRECTORIES (${INC_DIR} ${LIBEV_INCLUDE_DIR})
+
+ADD_SUBDIRECTORY( ${SRC_DIR} )
+
+TARGET_LINK_LIBRARIES(final tserver buffer cgi request ${LIBEV_LIBRARIES})
+
